@@ -11,7 +11,7 @@ import torch.nn.functional as F
 from box import Box
 import yaml
 
-from matplotlib.pyplot import plot, draw, show
+from matplotlib.pyplot import plot, draw, show, scatter
 
 
 class MNISTRunner:
@@ -40,15 +40,17 @@ class MNISTRunner:
         self.train_losses = []
         self.train_counter = []
         self.test_losses = []
-        self.test_counter = [i * len(self.train_loader.dataset) for i in range(n_epochs + 1)]
+        self.test_counter = [i * len(self.train_loader.dataset) for i in range(n_epochs)]
 
     def get_example(self):
         examples = enumerate(self.test_loader)
         # batch_idx, (example_data, example_targets)
         return next(examples)
 
-    def train(self, epoch):
+    def train_mode(self):
         self.model.train()
+
+    def train(self, epoch):
         for batch_idx, (data, target) in enumerate(self.train_loader):
             data = data.to(self.device)
             target = target.to(self.device)
@@ -86,8 +88,8 @@ class MNISTRunner:
 
     def draw_chart(self):
         plot(self.train_counter, self.train_losses, label="Train Loss", color='blue')
-        plot(self.test_counter, self.test_losses, label="Test Loss", color='red')
-        show(block=False)
+        scatter(self.test_counter, self.test_losses, label="Test Loss", color='red', marker='o')
+        show()
 
     def test(self, model):
         model.eval()
@@ -97,7 +99,7 @@ class MNISTRunner:
             for data, target in self.test_loader:
                 data = data.to(self.device)
                 target = target.to(self.device)
-                output = self.model(data)
+                output = model(data)
                 test_loss += F.nll_loss(output, target, size_average=False).item()
                 pred = output.data.max(1, keepdim=True)[1]
                 correct += pred.eq(target.data.view_as(pred)).sum()
@@ -108,7 +110,7 @@ class MNISTRunner:
             100. * correct / len(self.test_loader.dataset)))
 
     def save_model(self, model, optimizer):
-        torch.save(model.cpu().state_dict(), f"{self.datapath}/model.pth")
+        torch.save(model.state_dict(), f"{self.datapath}/model.pth")
         torch.save(optimizer.state_dict(), f"{self.datapath}/optimizer.pth")
 
 
@@ -129,6 +131,7 @@ def main(cfg, trans):
         lr=cfg.lr,
         tfs=trans)
     n_epochs = cfg.n_epochs
+    runner.train_mode()
     for epoch in range(1, n_epochs+1):
         runner.train(epoch)
     runner.draw_chart()
