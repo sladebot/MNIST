@@ -11,7 +11,7 @@ import torch.nn.functional as F
 from box import Box
 import yaml
 
-from matplotlib.pyplot import plot, draw, show, scatter
+from matplotlib.pyplot import plot, draw, show, scatter, legend
 
 
 class MNISTRunner:
@@ -89,6 +89,7 @@ class MNISTRunner:
     def draw_chart(self):
         plot(self.train_counter, self.train_losses, label="Train Loss", color='blue')
         scatter(self.test_counter, self.test_losses, label="Test Loss", color='red', marker='o')
+        legend()
         show()
 
     def test(self, model):
