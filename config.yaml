@@ -1,0 +1,4 @@
+n_epochs: 9
+batch_size_train: 64
+batch_size_test: 1000
+lr: 0.05
