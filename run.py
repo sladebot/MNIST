@@ -11,16 +11,17 @@ import torch.nn.functional as F
 from box import Box
 import yaml
 
+import matplotlib.pyplot as plt
 from matplotlib.pyplot import plot, draw, show, scatter, legend
 
 
 class MNISTRunner:
-    def __init__(self, n_epochs, batch_size_train, batch_size_test, tfs, lr, momentum=0.5):
+    def __init__(self, n_epochs, batch_size_train, batch_size_test, lr, momentum=0.5):
         self.device = get_device()
         self.n_epochs = n_epochs
         self.batch_size_train = batch_size_train
         self.batch_size_test = batch_size_test
-        self.transforms = tfs
+        self.transforms = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
         self.lr = lr
         self.momentum = momentum
         self.datapath = "data/"
@@ -40,17 +41,30 @@ class MNISTRunner:
         self.train_losses = []
         self.train_counter = []
         self.test_losses = []
-        self.test_counter = [i * len(self.train_loader.dataset) for i in range(n_epochs)]
+        self.test_counter = [i * len(self.train_loader.dataset) for i in range(n_epochs+1)]
 
     def get_example(self):
         examples = enumerate(self.test_loader)
         # batch_idx, (example_data, example_targets)
         return next(examples)
 
+    def show_examples(self):
+        _, (example_data, example_targets) = self.get_example()
+        fig = plt.figure()
+        for i in range(6):
+            plt.subplot(2,3,i+1)
+            plt.tight_layout()
+            plt.imshow(example_data[i][0], cmap='gray', interpolation='none')
+            plt.title("Ground Truth: {}".format(example_targets[i]))
+            plt.xticks([])
+            plt.yticks([])
+        fig
+
     def train_mode(self):
         self.model.train()
 
     def train(self, epoch):
+        self.model.train()
         for batch_idx, (data, target) in enumerate(self.train_loader):
             data = data.to(self.device)
             target = target.to(self.device)
@@ -66,16 +80,15 @@ class MNISTRunner:
                 self.train_losses.append(loss.item())
                 self.train_counter.append(
                     (batch_idx * 64) + ((epoch - 1) * len(self.train_loader.dataset)))
-                # torch.save(self.model.state_dict(), f'{self.datapath}/model.pth')
-                # torch.save(self.optimizer.state_dict(), f'{self.datapath}/optimizer.pth')
-        self.test(self.model)
-        self.save_model(self.model, self.optimizer)
+        self.test()
+        self.save_model(self.model, self.optimizer, model_name="mnist")
 
     def resume_training(self, min, max):
         model = ConvNet()
         model = model.to(self.device)
         model_state_dict = torch.load(f"{self.datapath}/model.pth")
         model.load_state_dict(model_state_dict)
+        model.train()
         self.model = model
         optimizer_state_dict = torch.load(f"{self.datapath}/optimizer.pth")
         optimizer = optim.SGD(self.model.parameters(), lr=self.lr,
@@ -92,15 +105,15 @@ class MNISTRunner:
         legend()
         show()
 
-    def test(self, model):
-        model.eval()
+    def test(self):
+        self.model.eval()
         test_loss = 0
         correct = 0
         with torch.no_grad():
             for data, target in self.test_loader:
                 data = data.to(self.device)
                 target = target.to(self.device)
-                output = model(data)
+                output = self.model(data)
                 test_loss += F.nll_loss(output, target, size_average=False).item()
                 pred = output.data.max(1, keepdim=True)[1]
                 correct += pred.eq(target.data.view_as(pred)).sum()
@@ -110,8 +123,8 @@ class MNISTRunner:
             test_loss, correct, len(self.test_loader.dataset),
             100. * correct / len(self.test_loader.dataset)))
 
-    def save_model(self, model, optimizer):
-        torch.save(model.state_dict(), f"{self.datapath}/model.pth")
+    def save_model(self, model, optimizer, model_name="model"):
+        torch.save(model.state_dict(), f"{self.datapath}/{model_name}.pth")
         torch.save(optimizer.state_dict(), f"{self.datapath}/optimizer.pth")
 
 
@@ -124,33 +137,31 @@ def get_config(path="./config.yaml"):
     return config
 
 
-def main(cfg, trans):
+def train(cfg):
     runner = MNISTRunner(
         n_epochs=cfg.n_epochs,
         batch_size_train=cfg.batch_size_train,
         batch_size_test=cfg.batch_size_test,
-        lr=cfg.lr,
-        tfs=trans)
+        lr=cfg.lr)
     n_epochs = cfg.n_epochs
-    runner.train_mode()
+    # runner.show_examples()
+    runner.test()
     for epoch in range(1, n_epochs+1):
         runner.train(epoch)
     runner.draw_chart()
 
 
-def resume(cfg, trans):
+def resume(cfg):
     runner = MNISTRunner(
         n_epochs=cfg.n_epochs,
         batch_size_train=cfg.batch_size_train,
         batch_size_test=cfg.batch_size_test,
-        lr=cfg.lr,
-        tfs=trans)
+        lr=cfg.lr)
 
     runner.resume_training(min=4, max=9)
 
 
 if __name__ == "__main__":
-    trans = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
     cfg = get_config()
-    main(cfg, trans)
-    # resume(cfg, trans)
+    train(cfg)
+    # resume(cfg)
