@@ -60,3 +60,9 @@ We will evaluate the training model with this image:
 ```
 python -m cli --evaluate --ckpf data/mnist.pth --image_path 7.png
 ```
+
+Output:
+
+```
+Predicted Label - 7
+```
